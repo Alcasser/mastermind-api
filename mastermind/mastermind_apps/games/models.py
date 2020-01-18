@@ -15,12 +15,19 @@ class Game(models.Model):
     points = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    def __str__(self):
+        return f'{self.pk} - finished: {self.finished} - ' \
+               f'decoded: {self.decoded} - points: {self.points}'
+
 
 class Code(models.Model):
     game = models.ForeignKey(
         Game, related_name='codes', on_delete=models.CASCADE)
     is_guess = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'{self.pk} - game: {self.game.pk} - is_guess: {self.is_guess}'
 
 
 class Peg(models.Model):
@@ -30,3 +37,7 @@ class Peg(models.Model):
     position = models.IntegerField(
         validators=[MinValueValidator(0), MaxValueValidator(3)])
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'{self.pk} - code: {self.code.pk} ' \
+               f'- ({self.color}, {self.position})'
