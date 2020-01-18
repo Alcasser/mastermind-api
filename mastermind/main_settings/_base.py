@@ -41,7 +41,8 @@ INSTALLED_APPS = [
     'corsheaders',
     'rest_framework',
     'rest_framework.authtoken',
-    'storages'
+    'storages',
+    'mastermind_apps.games'
 ]
 
 MIDDLEWARE = [
