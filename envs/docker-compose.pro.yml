@@ -1,0 +1,31 @@
+version: "2"
+services:
+  mastermind-api:
+    env_file:
+      - ./envs/production.env
+    volumes:
+      - /data/mastermind-data/static:/data/static
+      - /data/mastermind-data/media:/data/media
+    environment:
+      - PYTHONUNBUFFERED=0
+
+  nginx:
+    build:
+      context: ./config/nginx/
+      args:
+        ENV: 'production'
+    volumes:
+      - /data/mastermind-data/static:/data/static
+      - /data/mastermind-data/media:/data/media
+
+    env_file:
+      - ./envs/production.env
+    ports:
+      - "80:80"
+      - "443:443"
+
+  postgres:
+    volumes:
+      - /usr/local/postgresql/:/var/lib/postgresql/data
+    env_file:
+      - ./envs/production.env

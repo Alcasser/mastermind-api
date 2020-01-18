@@ -1,0 +1,30 @@
+version: "2"
+services:
+  mastermind-api:
+    env_file:
+      - ./envs/development.env
+    volumes:
+      - /data/mastermind-data/static:/data/static
+      - /data/mastermind-data/media:/data/media
+    environment:
+      - PYTHONUNBUFFERED=TRUE
+
+  nginx:
+    build:
+      context: ./config/nginx/
+      args:
+        ENV: 'development'
+    volumes:
+      - /data/mastermind-data/static:/data/static
+      - /data/mastermind-data/media:/data/media
+
+    env_file:
+      - ./envs/development.env
+    ports:
+      - "80:80"
+
+  postgres:
+    volumes:
+      - /usr/local/postgresql/:/var/lib/postgresql/data
+    env_file:
+      - ./envs/development.env

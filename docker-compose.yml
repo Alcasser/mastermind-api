@@ -1,0 +1,33 @@
+version: "2"
+services:
+  mastermind-api:
+    restart: always
+    expose:
+      - "8001"
+    build: ./mastermind/
+    networks:
+      - front_net
+      - back_net
+    container_name: django-mastermind-api
+
+  nginx:
+    restart: always
+    build: ./config/nginx/
+    networks:
+      - front_net
+    container_name: nginx-mastermind
+
+  postgres:
+    restart: always
+    build: ./config/postgres/
+    expose:
+      - "5432"
+    networks:
+      - back_net
+    container_name: postgres-mastermind
+
+networks:
+  front_net:
+    driver: bridge
+  back_net:
+    driver: bridge
