@@ -100,11 +100,11 @@ AUTH_PASSWORD_VALIDATORS = [
 REST_FRAMEWORK = {
 
     'DEFAULT_AUTHENTICATION_CLASSES': (
-      'rest_framework_simplejwt.authentication.JWTAuthentication',
+        # Omited for all apps. Use authentication in a real scenario!
     ),
 
     'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.IsAuthenticated',
+        # Omited for all apps. Use permissions in a real scenario!
     ),
 
     'DEFAULT_RENDERER_CLASSES': (
