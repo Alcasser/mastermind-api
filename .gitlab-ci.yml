@@ -1,0 +1,40 @@
+image:
+  name: docker/compose:1.24.1 # docker/compose currently without latest tag.
+  entrypoint: ["/bin/sh", "-c"] # Override. Image uses docker-compose as entrypoint.
+
+variables:
+  # When using dind service we need to instruct docker, to talk with the
+  # daemon started inside of the service. The daemon is available with
+  # a network connection instead of the default /var/run/docker.sock socket.
+  #
+  # The 'docker' hostname is the alias of the service container as described at
+  # https://docs.gitlab.com/ee/ci/docker/using_docker_images.html#accessing-the-services
+  #
+  # Note that if you're using the Kubernetes executor, the variable should be set to
+  # tcp://localhost:2375/ because of how the Kubernetes executor connects services
+  # to the job container
+  # DOCKER_HOST: tcp://localhost:2375/
+  #
+  # For non-Kubernetes executors, we use tcp://docker:2375/
+  DOCKER_HOST: tcp://docker:2375/
+  # When using dind, it's wise to use the overlayfs driver for
+  # improved performance.
+  DOCKER_DRIVER: overlay2
+
+services:
+  - docker:dind
+
+before_script:
+  - docker info
+  - docker-compose version
+  # Login to the repo registry using the job token
+  - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
+
+stages:
+  - test
+
+test:
+  stage: test
+  script:
+    - docker-compose -f docker-compose.yml -f envs/docker-compose.local.yml build --pull
+    - docker-compose -f docker-compose.yml -f envs/docker-compose.local.yml run mastermind-api bash -c "/wait-for.sh postgres 5432 && ./manage.py test"
