@@ -5,6 +5,8 @@ services:
     expose:
       - "8001"
     build: ./mastermind/
+    depends_on:
+      - postgres
     networks:
       - front_net
       - back_net
