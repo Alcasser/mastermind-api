@@ -44,11 +44,16 @@ class CodeTestCase(TestCase):
         return code
 
     def test_can_get_correct_code_feedback(self):
+        # Test feedback is correct
         guess_colors = ['red', 'green', 'red', 'yellow']
         guess_code = self._create_code_with_colors(guess_colors, is_guess=True)
-
-        # Test feedback is correct
         self.assertEqual(guess_code.get_feedback(), {'blacks': 1, 'whites': 2})
+
+        guess_code = self._create_code_with_colors(
+            self.game_colors, is_guess=True)
+        self.assertEqual(guess_code.get_feedback(), {'blacks': 4, 'whites': 0})
+
+        # Test feedback is none for game code
         self.assertIsNone(self.game_code.get_feedback())
 
     def test_can_get_peg_colors_list(self):
@@ -60,7 +65,7 @@ class GamesViewsApiTestCase(APITestCase):
     def setUp(self):
         # Create default game
         self.game = Game.objects.create()
-        self.game.generate_random_code()
+        self.game_code = self.game.generate_random_code()
 
         self.guess_data = {'pegs': [
             {'color': 'red', 'position': 0},
@@ -75,6 +80,12 @@ class GamesViewsApiTestCase(APITestCase):
         self.assertEqual(response.status_code, HTTP_201_CREATED)
 
         return response
+
+    def _set_game_code_colors(self):
+        # Set game code colors or guess could match
+        for peg in self.game_code.pegs.all():
+            peg.color = 'red'
+            peg.save()
 
     def test_can_create_a_new_game(self):
         # Test can create a game and the returned data contains the uuid
@@ -134,3 +145,42 @@ class GamesViewsApiTestCase(APITestCase):
         self.game.save()
         response = self.client.post(url, self.guess_data, format='json')
         self.assertEqual(response.status_code, HTTP_400_BAD_REQUEST)
+
+    def test_can_add_game_point_for_each_code_guess(self):
+        url = reverse('games-guesses', kwargs={'pk': self.game.pk})
+
+        response = self.client.post(url, self.guess_data, format='json')
+        self.game.refresh_from_db()
+        self.assertEqual(self.game.points, 1)
+
+    def test_can_finish_game_when_max_guesses_is_reached(self):
+        url = reverse('games-guesses', kwargs={'pk': self.game.pk})
+        self._set_game_code_colors()
+
+        # Test game has finished
+        for guess in range(self.game.max_guesses):
+            self.client.post(url, self.guess_data, format='json')
+        self.game.refresh_from_db()
+        self.assertTrue(self.game.finished)
+
+    def test_can_add_extra_point_when_max_guesses_is_reached(self):
+        url = reverse('games-guesses', kwargs={'pk': self.game.pk})
+        self._set_game_code_colors()
+
+        for guess in range(self.game.max_guesses):
+            self.client.post(url, self.guess_data, format='json')
+        self.game.refresh_from_db()
+        self.assertEqual(self.game.points, self.game.max_guesses + 1)
+
+    def test_can_finish_and_set_decoded_when_guess_matches(self):
+        url = reverse('games-guesses', kwargs={'pk': self.game.pk})
+
+        # Set game code colors to match guess code
+        for peg in self.game_code.pegs.order_by('position'):
+            peg.color = self.guess_data['pegs'][peg.position]['color']
+            peg.save()
+
+        response = self.client.post(url, self.guess_data, format='json')
+        self.assertEqual(response.status_code, HTTP_201_CREATED)
+        self.game.refresh_from_db()
+        self.assertTrue(self.game.decoded and self.game.finished)

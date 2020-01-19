@@ -51,6 +51,8 @@ class CodeSerializer(ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        game = self.context.get('game')
+
         # Obtain the pegs data and create the code
         pegs_data = validated_data.pop('pegs')
         code = Code.objects.create(**validated_data)
@@ -58,5 +60,23 @@ class CodeSerializer(ModelSerializer):
         # Create the code pegs
         for peg_data in pegs_data:
             Peg.objects.create(code=code, **peg_data)
+
+        # Add one point to the game due to the new code guess
+        game.points += 1
+
+        # Check if guess matches game code
+        feedback = code.get_feedback()
+        if feedback.get('blacks') == 4:
+            game.decoded = True
+            game.finished = True
+
+        # Check if this was the last guess attempt
+        guess_attempts = Code.objects.filter(game=game, is_guess=True).count()
+        if guess_attempts == game.max_guesses:
+            game.finished = True
+            if not game.decoded:
+                game.points += 1
+
+        game.save()
 
         return code
