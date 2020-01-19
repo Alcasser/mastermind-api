@@ -57,3 +57,24 @@ class GamesViewsApiTests(APITestCase):
         code = Code.objects.first()
         self.assertEqual(Code.objects.count(), 1)
         self.assertEqual(code.pegs.count(), 4)
+
+    def test_can_create_code_guess(self):
+        # Create default game
+        game = Game.objects.create()
+        game_code = game.generate_random_code()
+
+        url = reverse('games-guesses', kwargs={'pk': game.pk})
+
+        # Test guess returns correct feedback
+        guess_data = {'pegs': [
+            {'color': 'red', 'position': 0},
+            {'color': 'green', 'position': 1},
+            {'color': 'yellow', 'position': 2},
+            {'color': 'green', 'position': 3}
+        ]}
+        response = self.client.post(url, guess_data)
+        self.assertEqual(response.status_code, HTTP_201_CREATED)
+        self.assertTrue('feedback' in response.data)
+        feedback_data = response.data['feedback']
+        self.assertTrue('whites' in feedback_data and
+                        'blacks' in feedback_data)

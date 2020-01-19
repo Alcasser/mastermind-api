@@ -1,6 +1,6 @@
-from rest_framework.serializers import ModelSerializer
+from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
-from mastermind_apps.games.models import Game
+from mastermind_apps.games.models import Game, Code
 
 
 class GameSerializer(ModelSerializer):
@@ -16,3 +16,15 @@ class GameSerializer(ModelSerializer):
         new_game.generate_random_code()
 
         return new_game
+
+
+class CodeSerializer(ModelSerializer):
+    feedback = SerializerMethodField()
+
+    class Meta:
+        model = Code
+        read_only_fields = ('game', 'is_guess', 'created_at')
+        exclude = ('id',)
+
+    def get_feedback(self, code):
+        return code.get_feedback()

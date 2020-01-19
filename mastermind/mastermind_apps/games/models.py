@@ -28,7 +28,7 @@ class Game(models.Model):
         if Code.objects.filter(game=self, is_guess=False):
             return None
 
-        game_code = Code.objects.create(game=self)
+        game_code = Code.objects.create(game=self, is_guess=False)
         for position in range(Code.NUMBER_OF_PEGS):
             color = random.choice(PEG_COLORS)[0]
             Peg.objects.create(code=game_code, position=position, color=color)
@@ -49,8 +49,16 @@ class Code(models.Model):
 
     game = models.ForeignKey(
         Game, related_name='codes', on_delete=models.CASCADE)
-    is_guess = models.BooleanField(default=False)
+    is_guess = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def get_feedback(self):
+        if not self.is_guess:
+            return None
+
+        feedback = {'whites': 0, 'blacks': 0}
+
+        return feedback
 
     def __str__(self):
         return f'{self.pk} - game: {self.game.pk} - is_guess: {self.is_guess}'
