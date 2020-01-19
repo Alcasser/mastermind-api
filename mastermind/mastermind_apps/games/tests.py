@@ -4,10 +4,11 @@ from django.urls import reverse
 from rest_framework.test import APITestCase
 from rest_framework.status import HTTP_201_CREATED
 
-from mastermind_apps.games.models import Game, Code
+from mastermind_apps.games.models import Game, Code, Peg
 
 
 class GameTestCase(TestCase):
+
     def setUp(self):
         self.game = Game.objects.create()
 
@@ -26,7 +27,35 @@ class GameTestCase(TestCase):
         self.assertEqual(Code.objects.count(), 1)
 
 
-class GamesViewsApiTests(APITestCase):
+class CodeTestCase(TestCase):
+
+    def setUp(self):
+        self.game = Game.objects.create()
+        self.game_colors = ['red', 'blue', 'green', 'red']
+        self.game_code = self._create_code_with_colors(
+            self.game_colors, is_guess=False)
+
+    def _create_code_with_colors(self, colors, is_guess):
+        code = Code.objects.create(game=self.game, is_guess=is_guess)
+        for position in range(Code.NUMBER_OF_PEGS):
+            Peg.objects.create(
+                code=code, position=position, color=colors[position])
+
+        return code
+
+    def test_can_get_correct_code_feedback(self):
+        guess_colors = ['red', 'green', 'red', 'yellow']
+        guess_code = self._create_code_with_colors(guess_colors, is_guess=True)
+
+        # Test feedback is correct
+        self.assertEqual(guess_code.get_feedback(), {'blacks': 1, 'whites': 2})
+        self.assertIsNone(self.game_code.get_feedback())
+
+    def test_can_get_peg_colors_list(self):
+        self.assertEqual(self.game_code.get_peg_colors(), self.game_colors)
+
+
+class GamesViewsApiTestCase(APITestCase):
 
     def _create_game(self, data=None):
         url = reverse('games-list')

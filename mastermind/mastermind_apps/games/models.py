@@ -52,13 +52,38 @@ class Code(models.Model):
     is_guess = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    def get_peg_colors(self):
+        """
+        Returns the code colors sorted by position
+        """
+        return list(self.pegs.order_by(
+            'position').values_list('color', flat=True))
+
     def get_feedback(self):
+        """
+        Returns guess code feedback about the game code. Based on the algorithm
+        described in https://en.wikipedia.org/wiki/Mastermind_(board_game)
+        """
         if not self.is_guess:
             return None
 
-        feedback = {'whites': 0, 'blacks': 0}
+        game_code = Code.objects.get(is_guess=False, game_id=self.game.pk)
+        game_colors = game_code.get_peg_colors()
+        guess_colors = self.get_peg_colors()
 
-        return feedback
+        whites = blacks = 0
+        for game_c, guess_c in zip(game_colors, guess_colors):
+            if game_c == guess_c:
+                blacks += 1
+            elif guess_c in game_colors:
+                guess_c_count = guess_colors.count(guess_c)
+                if guess_c_count > 1:
+                    if guess_c_count == game_colors.count(guess_c):
+                        whites += 1
+                else:
+                    whites += 1
+
+        return {'blacks': blacks, 'whites': whites}
 
     def __str__(self):
         return f'{self.pk} - game: {self.game.pk} - is_guess: {self.is_guess}'
