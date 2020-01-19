@@ -18,7 +18,10 @@ from django.conf.urls import include
 from django.contrib import admin
 from django.urls import path
 
+from mastermind_apps.games.urls import urlpatterns as games_urls
+
 
 urlpatterns = [
-    path('api/admin/', admin.site.urls)
+    path('api/admin/', admin.site.urls),
+    path('api/', include(games_urls)),
 ]
