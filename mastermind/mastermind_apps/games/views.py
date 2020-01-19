@@ -20,4 +20,5 @@ class GameViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
         if serializer.is_valid():
             serializer.save(game=game)
             return Response(serializer.data, status=HTTP_201_CREATED)
+
         return Response(serializer.errors, status=HTTP_400_BAD_REQUEST)

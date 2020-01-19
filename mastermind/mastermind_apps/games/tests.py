@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from rest_framework.test import APITestCase
-from rest_framework.status import HTTP_201_CREATED
+from rest_framework.status import HTTP_201_CREATED, HTTP_400_BAD_REQUEST
 
 from mastermind_apps.games.models import Game, Code, Peg
 
@@ -57,53 +57,80 @@ class CodeTestCase(TestCase):
 
 class GamesViewsApiTestCase(APITestCase):
 
-    def _create_game(self, data=None):
-        url = reverse('games-list')
-        response = self.client.post(url, data)
-        self.assertEqual(response.status_code, HTTP_201_CREATED)
-
-        return response
-
-    def test_can_create_a_new_game(self):
-        # Test can create a game with specific number of guesses
-        data = {'max_guesses': 12}
-        response = self._create_game(data)
-        self.assertEqual(Game.objects.count(), 1)
-        self.assertEqual(response.data['max_guesses'], 12)
-
-        # Test can create default game and the returned data contains the uuid
-        response = self._create_game()
-        game_exists = Game.objects.filter(pk=response.data['uuid'])
-        self.assertIsNotNone(game_exists)
-        self.assertEqual(Game.objects.count(), 2)
-        self.assertEqual(response.data['max_guesses'], 10)
-
-    def test_code_with_random_pegs_are_created(self):
-        self._create_game()
-
-        # Test a game code with four random pegs has been created for the new
-        # game
-        code = Code.objects.first()
-        self.assertEqual(Code.objects.count(), 1)
-        self.assertEqual(code.pegs.count(), 4)
-
-    def test_can_create_code_guess(self):
+    def setUp(self):
         # Create default game
-        game = Game.objects.create()
-        game_code = game.generate_random_code()
+        self.game = Game.objects.create()
+        self.game.generate_random_code()
 
-        url = reverse('games-guesses', kwargs={'pk': game.pk})
-
-        # Test guess returns correct feedback
-        guess_data = {'pegs': [
+        self.guess_data = {'pegs': [
             {'color': 'red', 'position': 0},
             {'color': 'green', 'position': 1},
             {'color': 'yellow', 'position': 2},
             {'color': 'green', 'position': 3}
         ]}
-        response = self.client.post(url, guess_data)
+
+    def _create_game(self, data=None):
+        url = reverse('games-list')
+        response = self.client.post(url, data, format='json')
         self.assertEqual(response.status_code, HTTP_201_CREATED)
+
+        return response
+
+    def test_can_create_a_new_game(self):
+        # Test can create a game and the returned data contains the uuid
+        data = {'max_guesses': 12}
+        response = self._create_game(data)
+        game_exists = Game.objects.filter(pk=response.data['uuid'])
+        self.assertIsNotNone(game_exists)
+        self.assertEqual(response.data['max_guesses'], 12)
+
+        # Test a game code with four random pegs has been created for the new
+        # game
+        code_exists = Code.objects.filter(
+            game_id=response.data['uuid'], is_guess=False)
+        self.assertIsNotNone(game_exists)
+        self.assertEqual(code_exists[0].pegs.count(), 4)
+
+    def test_can_create_code_guess_and_pegs(self):
+        url = reverse('games-guesses', kwargs={'pk': self.game.pk})
+
+        response = self.client.post(url, self.guess_data, format='json')
+        self.assertEqual(response.status_code, HTTP_201_CREATED)
+
+        # Test guess code and pegs are created
+        guess_code_exists = Code.objects.filter(game=self.game, is_guess=True)
+        self.assertIsNotNone(guess_code_exists)
+        self.assertTrue('pegs' in response.data)
+        pegs_data = sorted(response.data['pegs'],
+                           key=lambda peg: peg['position'])
+        self.assertEqual(pegs_data, self.guess_data['pegs'])
+
+        # Test guess returns feedback
         self.assertTrue('feedback' in response.data)
         feedback_data = response.data['feedback']
         self.assertTrue('whites' in feedback_data and
                         'blacks' in feedback_data)
+
+    def test_can_validate_code_guess_and_pegs(self):
+        url = reverse('games-guesses', kwargs={'pk': self.game.pk})
+
+        # Test validates correct number of pegs
+        response = self.client.post(url, {'pegs': []}, format='json')
+        self.assertEqual(response.status_code, HTTP_400_BAD_REQUEST)
+
+        # Test validates pegs color and position
+        self.guess_data['pegs'][0]['color'] = 'purple'
+        response = self.client.post(url, self.guess_data, format='json')
+        self.assertEqual(response.status_code, HTTP_400_BAD_REQUEST)
+        self.guess_data['pegs'][0]['color'] = 'red'
+
+        self.guess_data['pegs'][0]['position'] = 4
+        response = self.client.post(url, self.guess_data, format='json')
+        self.assertEqual(response.status_code, HTTP_400_BAD_REQUEST)
+        self.guess_data['pegs'][0]['position'] = 3
+
+        # Test validates game is not finished
+        self.game.finished = True
+        self.game.save()
+        response = self.client.post(url, self.guess_data, format='json')
+        self.assertEqual(response.status_code, HTTP_400_BAD_REQUEST)
