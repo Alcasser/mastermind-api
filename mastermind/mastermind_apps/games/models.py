@@ -14,11 +14,24 @@ class Game(models.Model):
     """
     uuid = models.UUIDField(primary_key=True, default=uuid4,
                             editable=False)
+    n_guesses = models.IntegerField(default=0)
     max_guesses = models.IntegerField(choices=MAX_CODE_GUESSES, default=10)
-    finished = models.BooleanField(default=False)
     decoded = models.BooleanField(default=False)
-    points = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def finished(self):
+        return self.decoded or self.n_guesses == self.max_guesses
+
+    @property
+    def points(self):
+        """
+        The codemaker earns one point for each guess + 1 if max_guesses is
+        reached and the code is not broken
+        """
+        finished_and_not_decoded = self.n_guesses == self.max_guesses and \
+                                   not self.decoded
+        return self.n_guesses + finished_and_not_decoded
 
     def generate_random_code(self):
         """

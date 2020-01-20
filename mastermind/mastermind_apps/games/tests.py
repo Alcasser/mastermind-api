@@ -11,20 +11,43 @@ class GameTestCase(TestCase):
 
     def setUp(self):
         self.game = Game.objects.create()
+        self.game_code = self.game.generate_random_code()
 
-    def game_can_create_code_to_guess(self):
-        code = self.game.generate_random_code()
-
+    def test_game_can_create_code_to_guess(self):
         # One code with four pegs are created
         code_exists = Code.objects.filter(game=self.game, is_guess=False)
         self.assertTrue(code_exists)
-        self.assertEqual(code.pk, code_exists[0].pk)
-        self.assertEqual(code.pegs.count(), 4)
+        self.assertEqual(self.game_code.pk, code_exists[0].pk)
+        self.assertEqual(self.game_code.pegs.count(), 4)
 
         # No more codes are created
         code = self.game.generate_random_code()
         self.assertIsNone(code)
         self.assertEqual(Code.objects.count(), 1)
+
+    def test_game_points_property(self):
+        # Test points increment with guesses
+        self.game.n_guesses += 1
+        self.game.save()
+        self.assertEqual(self.game.points, 1)
+
+        # Test one extra point is given if max_guesses is reached without the
+        # game being decoded
+        self.game.n_guesses = self.game.max_guesses
+        self.game.save()
+        self.assertEqual(self.game.points, self.game.max_guesses + 1)
+
+    def test_game_finished_property(self):
+        # Test game is finished when decoded
+        self.game.decoded = True
+        self.game.save()
+        self.assertTrue(self.game.finished)
+
+        # Test game is finished when max_guesses is reached
+        self.game.decoded = False
+        self.game.n_guesses = self.game.max_guesses
+        self.game.save()
+        self.assertTrue(self.game.finished)
 
 
 class CodeTestCase(TestCase):
@@ -141,38 +164,21 @@ class GamesViewsApiTestCase(APITestCase):
         self.guess_data['pegs'][0]['position'] = 3
 
         # Test validates game is not finished
-        self.game.finished = True
+        self.game.decoded = True
         self.game.save()
         response = self.client.post(url, self.guess_data, format='json')
         self.assertEqual(response.status_code, HTTP_400_BAD_REQUEST)
 
-    def test_can_add_game_point_for_each_code_guess(self):
+    def test_can_increment_guess_on_each_code_guess(self):
         url = reverse('games-guesses', kwargs={'pk': self.game.pk})
 
+        self.assertEqual(self.game.n_guesses, 0)
         response = self.client.post(url, self.guess_data, format='json')
+        self.assertEqual(response.status_code, HTTP_201_CREATED)
         self.game.refresh_from_db()
-        self.assertEqual(self.game.points, 1)
+        self.assertEqual(self.game.n_guesses, 1)
 
-    def test_can_finish_game_when_max_guesses_is_reached(self):
-        url = reverse('games-guesses', kwargs={'pk': self.game.pk})
-        self._set_game_code_colors()
-
-        # Test game has finished
-        for guess in range(self.game.max_guesses):
-            self.client.post(url, self.guess_data, format='json')
-        self.game.refresh_from_db()
-        self.assertTrue(self.game.finished)
-
-    def test_can_add_extra_point_when_max_guesses_is_reached(self):
-        url = reverse('games-guesses', kwargs={'pk': self.game.pk})
-        self._set_game_code_colors()
-
-        for guess in range(self.game.max_guesses):
-            self.client.post(url, self.guess_data, format='json')
-        self.game.refresh_from_db()
-        self.assertEqual(self.game.points, self.game.max_guesses + 1)
-
-    def test_can_finish_and_set_decoded_when_guess_matches(self):
+    def test_can_set_decoded_when_guess_matches(self):
         url = reverse('games-guesses', kwargs={'pk': self.game.pk})
 
         # Set game code colors to match guess code
@@ -183,4 +189,4 @@ class GamesViewsApiTestCase(APITestCase):
         response = self.client.post(url, self.guess_data, format='json')
         self.assertEqual(response.status_code, HTTP_201_CREATED)
         self.game.refresh_from_db()
-        self.assertTrue(self.game.decoded and self.game.finished)
+        self.assertTrue(self.game.decoded)

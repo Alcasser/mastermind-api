@@ -1,5 +1,5 @@
 from rest_framework.serializers import ModelSerializer, SerializerMethodField,\
-    ValidationError
+    ValidationError, IntegerField, BooleanField
 
 from mastermind_apps.games.models import Game, Code, Peg
 from mastermind_apps.games.response_messages import INVALID_NUMBER_OF_PEGS,\
@@ -7,9 +7,12 @@ from mastermind_apps.games.response_messages import INVALID_NUMBER_OF_PEGS,\
 
 
 class GameSerializer(ModelSerializer):
+    points = IntegerField(read_only=True)
+    finished = BooleanField(read_only=True)
+
     class Meta:
         model = Game
-        read_only_fields = ('finised', 'decoded', 'points', 'created_at')
+        read_only_fields = ('decoded', 'created_at')
         fields = '__all__'
 
     def create(self, validated_data):
@@ -61,21 +64,13 @@ class CodeSerializer(ModelSerializer):
         for peg_data in pegs_data:
             Peg.objects.create(code=code, **peg_data)
 
-        # Add one point to the game due to the new code guess
-        game.points += 1
+        # Add one guess to the game due to the new code guess
+        game.n_guesses += 1
 
         # Check if guess matches game code
         feedback = code.get_feedback()
         if feedback.get('blacks') == 4:
             game.decoded = True
-            game.finished = True
-
-        # Check if this was the last guess attempt
-        guess_attempts = Code.objects.filter(game=game, is_guess=True).count()
-        if guess_attempts == game.max_guesses:
-            game.finished = True
-            if not game.decoded:
-                game.points += 1
 
         game.save()
 
