@@ -14,11 +14,24 @@ class Game(models.Model):
     """
     uuid = models.UUIDField(primary_key=True, default=uuid4,
                             editable=False)
+    n_guesses = models.IntegerField(default=0)
     max_guesses = models.IntegerField(choices=MAX_CODE_GUESSES, default=10)
-    finished = models.BooleanField(default=False)
     decoded = models.BooleanField(default=False)
-    points = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def finished(self):
+        return self.decoded or self.n_guesses == self.max_guesses
+
+    @property
+    def points(self):
+        """
+        The codemaker earns one point for each guess + 1 if max_guesses is
+        reached and the code is not broken
+        """
+        finished_and_not_decoded = self.n_guesses == self.max_guesses and \
+                                   not self.decoded
+        return self.n_guesses + finished_and_not_decoded
 
     def generate_random_code(self):
         """
@@ -28,7 +41,7 @@ class Game(models.Model):
         if Code.objects.filter(game=self, is_guess=False):
             return None
 
-        game_code = Code.objects.create(game=self)
+        game_code = Code.objects.create(game=self, is_guess=False)
         for position in range(Code.NUMBER_OF_PEGS):
             color = random.choice(PEG_COLORS)[0]
             Peg.objects.create(code=game_code, position=position, color=color)
@@ -49,8 +62,41 @@ class Code(models.Model):
 
     game = models.ForeignKey(
         Game, related_name='codes', on_delete=models.CASCADE)
-    is_guess = models.BooleanField(default=False)
+    is_guess = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def get_peg_colors(self):
+        """
+        Returns the code colors sorted by position
+        """
+        return list(self.pegs.order_by(
+            'position').values_list('color', flat=True))
+
+    def get_feedback(self):
+        """
+        Returns guess code feedback about the game code. Based on the algorithm
+        described in https://en.wikipedia.org/wiki/Mastermind_(board_game)
+        """
+        if not self.is_guess:
+            return None
+
+        game_code = Code.objects.get(is_guess=False, game_id=self.game.pk)
+        game_colors = game_code.get_peg_colors()
+        guess_colors = self.get_peg_colors()
+
+        whites = blacks = 0
+        for game_c, guess_c in zip(game_colors, guess_colors):
+            if game_c == guess_c:
+                blacks += 1
+            elif guess_c in game_colors:
+                guess_c_count = guess_colors.count(guess_c)
+                if guess_c_count > 1:
+                    if guess_c_count == game_colors.count(guess_c):
+                        whites += 1
+                else:
+                    whites += 1
+
+        return {'blacks': blacks, 'whites': whites}
 
     def __str__(self):
         return f'{self.pk} - game: {self.game.pk} - is_guess: {self.is_guess}'
