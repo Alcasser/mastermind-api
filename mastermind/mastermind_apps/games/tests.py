@@ -2,7 +2,8 @@ from django.test import TestCase
 from django.urls import reverse
 
 from rest_framework.test import APITestCase
-from rest_framework.status import HTTP_201_CREATED, HTTP_400_BAD_REQUEST
+from rest_framework.status import HTTP_201_CREATED, HTTP_400_BAD_REQUEST,\
+    HTTP_200_OK
 
 from mastermind_apps.games.models import Game, Code, Peg
 
@@ -190,3 +191,26 @@ class GamesViewsApiTestCase(APITestCase):
         self.assertEqual(response.status_code, HTTP_201_CREATED)
         self.game.refresh_from_db()
         self.assertTrue(self.game.decoded)
+
+    def test_can_get_game_historic_code_guesses_and_game_code(self):
+        guesses_url = reverse('games-guesses', kwargs={'pk': self.game.pk})
+        game_url = reverse('games-detail', kwargs={'pk': self.game.pk})
+        self._create_game()
+
+        response = self.client.post(
+            guesses_url, self.guess_data, format='json')
+        self.assertEqual(response.status_code, HTTP_201_CREATED)
+
+        # Test serializer returns the code guesses but not the game code
+        response = self.client.get(game_url)
+        self.assertEqual(response.status_code, HTTP_200_OK)
+        self.assertTrue('guesses' in response.data)
+        self.assertEqual(len(response.data['guesses']), 1)
+        self.assertIsNone(response.data['code'])
+
+        # Test returns the game code if finished
+        self.game.decoded = True
+        self.game.save()
+        response = self.client.get(game_url)
+        self.assertTrue('guesses' in response.data)
+        self.assertIsNotNone(response.data['code'])

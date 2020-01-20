@@ -7,7 +7,8 @@ from mastermind_apps.games.models import Game
 from mastermind_apps.games.serializers import GameSerializer, CodeSerializer
 
 
-class GameViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin):
+class GameViewSet(viewsets.GenericViewSet, mixins.CreateModelMixin,
+                  mixins.RetrieveModelMixin):
     queryset = Game.objects.all()
     serializer_class = GameSerializer
 
